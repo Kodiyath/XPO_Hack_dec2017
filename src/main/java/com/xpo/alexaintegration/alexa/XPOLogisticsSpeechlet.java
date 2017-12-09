@@ -1,7 +1,12 @@
 package com.xpo.alexaintegration.alexa;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.slf4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import com.amazon.speech.json.SpeechletRequestEnvelope;
 import com.amazon.speech.slu.Intent;
@@ -12,6 +17,9 @@ import com.amazon.speech.speechlet.SessionEndedRequest;
 import com.amazon.speech.speechlet.SessionStartedRequest;
 import com.amazon.speech.speechlet.SpeechletResponse;
 import com.amazon.speech.speechlet.SpeechletV2;
+import com.xpo.alexaintegration.business.LogisticsService;
+import com.xpo.alexaintegration.business.Order;
+import com.xpo.alexaintegration.business.OrderStatus;
 
 @Component
 public class XPOLogisticsSpeechlet implements SpeechletV2 {
@@ -36,17 +44,17 @@ public class XPOLogisticsSpeechlet implements SpeechletV2 {
         }
     }
 
-//    private final WarehouseService warehouseService;
-//
-//    /**
-//     * Constructor.
-//     *
-//     * @param warehouseService Warehouse service.
-//     */
-//    @Autowired
-//    public XPOLogisticsSpeechlet(WarehouseService warehouseService) {
-//        this.warehouseService = warehouseService;
-//    }
+    private final LogisticsService logisticsService;
+
+    /**
+     * Constructor.
+     *
+     * @param warehouseService Warehouse service.
+     */
+    @Autowired
+    public XPOLogisticsSpeechlet(LogisticsService warehouseService) {
+        this.logisticsService = warehouseService;
+    }
 
     @Override
     public void onSessionStarted(SpeechletRequestEnvelope<SessionStartedRequest> requestEnvelope) {
@@ -61,25 +69,25 @@ public class XPOLogisticsSpeechlet implements SpeechletV2 {
     }
 
     @Override
-    public SpeechletResponse onIntent(SpeechletRequestEnvelope<IntentRequest> requestEnvelope) {
-        LOGGER.info("onIntent()");
+	public SpeechletResponse onIntent(SpeechletRequestEnvelope<IntentRequest> requestEnvelope) {
+		LOGGER.info("onIntent()");
 
-        Intent intent = requestEnvelope.getRequest().getIntent();
-//        switch (intent.getName()) {
-//            case "QueryInventory":
-//                return handleQueryInventory(requestEnvelope);
-//            case "OrderWare":
-//                return handleOrderWare(requestEnvelope);
-//            case "LocateWare":
-//                return handleLocateWare(requestEnvelope);
-//            case "Quit":
-//                return handleQuit();
-//            default:
-//                throw new IllegalArgumentException("Unknown intent: " + intent.getName());
-//        }
-        
-        return SpeechletResponse.newTellResponse(AlexaHelper.speech("Integration done..."));
-    }
+		Intent intent = requestEnvelope.getRequest().getIntent();
+		switch (intent.getName()) {
+		case "QueryAllOrders":
+			return handleAllQueryOrders(requestEnvelope);
+		case "QueryOrder": 
+			return handleQueryOrders(requestEnvelope);
+		// case "OrderWare":
+		// return handleOrderWare(requestEnvelope);
+		// case "LocateWare":
+		// return handleLocateWare(requestEnvelope);
+		case "Quit":
+			return handleQuit();
+		default:
+			throw new IllegalArgumentException("Unknown intent: " + intent.getName());
+		}
+	}
 
     @Override
     public void onSessionEnded(SpeechletRequestEnvelope<SessionEndedRequest> requestEnvelope) {
@@ -95,21 +103,75 @@ public class XPOLogisticsSpeechlet implements SpeechletV2 {
         return SpeechletResponse.newTellResponse(AlexaHelper.speech(Strings.GOODBYE));
     }
 
-    /**
-     * Handles the QueryInventory intent.
-     *
-     * @param requestEnvelope Request.
-     * @return Response.
-     */
-//    private SpeechletResponse handleQueryInventory(SpeechletRequestEnvelope<IntentRequest> requestEnvelope) {
-//        Optional<String> ware = AlexaHelper.getSlotValue(requestEnvelope.getRequest().getIntent(), "ware");
-//        LOGGER.debug("handleQueryInventory({})", ware);
+	private SpeechletResponse handleAllQueryOrders(SpeechletRequestEnvelope<IntentRequest> requestEnvelope) {
+		List<Order> orders = logisticsService.getOrders();
+		
+		/*
+		 * You have 4 orders, with 2 orders in transit, 1 in shipped state
+		 */
+		
+		final StringBuilder sb = new StringBuilder();
+		if (CollectionUtils.isEmpty(orders)) {
+			return SpeechletResponse
+					.newTellResponse(AlexaHelper.speech("You do not have any orders currently"));
+		} 
+		
+		sb.append(String.format("You have %d orders, with", orders.size()));
+		
+		
+		return SpeechletResponse
+				.newTellResponse(AlexaHelper.speech(String.format("You have %d orders", orders.size())));
+		// Optional<String> ware =
+		// AlexaHelper.getSlotValue(requestEnvelope.getRequest().getIntent(),
+		// "ware");
+		// LOGGER.debug("handleQueryInventory({})", ware);
+		// if (!ware.isPresent()) {
+		// return createMissingWareResponse(requestEnvelope);
+		// }
+		//
+		// try {
+		// int amount = warehouseService.getAmount(normalizeWare(ware.get()));
+		//
+		// if (isConversation(requestEnvelope.getSession())) {
+		// return SpeechletResponse.newAskResponse(AlexaHelper.speech(
+		// String.format(Strings.WARE_AMOUNT, amount, ware.get()) + " " +
+		// Strings.PROMPT_USER),
+		// AlexaHelper.repromt(Strings.PROMPT_USER)
+		// );
+		// } else {
+		// return SpeechletResponse.newTellResponse(AlexaHelper.speech(
+		// String.format(Strings.WARE_AMOUNT, amount, ware.get())
+		// ));
+		// }
+		// } catch (UnknownWareException e) {
+		// return createUnknownWareResponse(requestEnvelope);
+		// }
+	}
+	
+    private SpeechletResponse handleQueryOrders(SpeechletRequestEnvelope<IntentRequest> requestEnvelope) {
+        Optional<String> orderStatus = AlexaHelper.getSlotValue(requestEnvelope.getRequest().getIntent(), "orderStatus");
+        LOGGER.debug("handleQueryOrders({})", orderStatus);
 //        if (!ware.isPresent()) {
 //            return createMissingWareResponse(requestEnvelope);
 //        }
-//
+
 //        try {
-//            int amount = warehouseService.getAmount(normalizeWare(ware.get()));
+        	List<Order> allOrders = logisticsService.getOrders();
+        	List<Order> ordersByStatus = logisticsService.getOrders(allOrders, OrderStatus.getStatus(orderStatus.get()));
+        	
+        	if (ordersByStatus != null && !ordersByStatus.isEmpty()) {
+        		StringBuilder sb = new StringBuilder();
+        		sb.append("Here are your orders,");
+        		for (Order o: ordersByStatus) {
+        			sb.append(String.format("order id %s, eta %s", o.getOrderId(), o.getCurrentEta()));
+        		}
+        		
+        		return SpeechletResponse.newTellResponse(AlexaHelper.speech(sb.toString()));
+        	} else {
+        		return SpeechletResponse.newTellResponse(AlexaHelper.speech(String.format("There is no %s orders", orderStatus.get())));
+        	}
+        	
+//            int amount = logisticsService.getAmount(normalizeWare(orderStatus.get()));
 //
 //            if (isConversation(requestEnvelope.getSession())) {
 //                return SpeechletResponse.newAskResponse(AlexaHelper.speech(
@@ -124,7 +186,7 @@ public class XPOLogisticsSpeechlet implements SpeechletV2 {
 //        } catch (UnknownWareException e) {
 //            return createUnknownWareResponse(requestEnvelope);
 //        }
-//    }
+    }
 
     /**
      * Handles the OrderWare intent.
@@ -231,15 +293,5 @@ public class XPOLogisticsSpeechlet implements SpeechletV2 {
      */
     private boolean isConversation(Session session) {
         return session.getAttribute(SESSION_CONVERSATION_FLAG) != null;
-    }
-
-    /**
-     * Normalizes the value of the ware slot.
-     *
-     * @param ware Ware.
-     * @return Normalized ware.
-     */
-    private String normalizeWare(String ware) {
-        return ware.toLowerCase();
     }
 }
